@@ -1,0 +1,52 @@
+[
+    {
+        "id": "dataset_001",
+        "label": "Healthy Colon Sample A",
+        "organ": "colon",
+        "platform": "cosmx",
+        "staged_path": "/blue/lab/data/colon_sample_A",
+        "cell_metadata_path": "/blue/lab/data/colon_sample_A/GSE234713_CosMx_cell_metadata.csv.gz",
+        "recommended_preset": "colon_cosmx_v1",
+        "schema_manifest": {
+            "obs_keys": [
+                "fov",
+                "cell_ID",
+                "patient",
+                "disease_status"
+            ],
+            "has_raw_counts": true,
+            "gene_id_format": "ensembl"
+        },
+        "metadata_columns": [
+            "CenterX_global_px",
+            "CenterY_global_px",
+            "fov",
+            "cell_ID"
+        ]
+    },
+    {
+        "id": "dataset_002",
+        "label": "IBD Colon Sample B",
+        "organ": "colon",
+        "platform": "cosmx",
+        "staged_path": "/blue/lab/data/colon_sample_B",
+        "cell_metadata_path": "/blue/lab/data/colon_sample_B/GSE234713_CosMx_cell_metadata.csv.gz",
+        "recommended_preset": "colon_cosmx_v1",
+        "schema_manifest": {
+            "obs_keys": [
+                "fov",
+                "cell_ID",
+                "patient",
+                "disease_status"
+            ],
+            "has_raw_counts": true,
+            "gene_id_format": "ensembl"
+        },
+        "metadata_columns": [
+            "CenterX_global_px",
+            "CenterY_global_px",
+            "fov",
+            "cell_ID"
+        ]
+    }
+]

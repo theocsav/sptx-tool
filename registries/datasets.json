@@ -1,0 +1,17 @@
+[
+  {
+    "id": "ibd_cosmx_sample_a",
+    "label": "IBD CosMx Sample A",
+    "organ": "colon",
+    "platform": "cosmx",
+    "staged_path": "/path/to/GSE234713_CosMx_combined.h5ad",
+    "cell_metadata_path": "/path/to/GSE234713_CosMx_cell_metadata.csv.gz",
+    "recommended_preset": "ibd_cosmx_k4",
+    "schema_manifest": {
+      "obs_keys": ["fov", "cell_ID", "patient", "disease_status"],
+      "has_raw_counts": true,
+      "gene_id_format": "ensembl"
+    },
+    "metadata_columns": ["CenterX_global_px", "CenterY_global_px", "fov", "cell_ID"]
+  }
+]

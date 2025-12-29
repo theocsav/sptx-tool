@@ -1,0 +1,64 @@
+import os
+from pathlib import Path
+
+from .storage import enforce_allowed_path
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+RUNS_DIR = Path(os.environ.get("RUNS_DIR", str(REPO_ROOT / "runs"))).resolve()
+PRESETS_DIR = Path(os.environ.get("PRESETS_DIR", str(REPO_ROOT / "presets"))).resolve()
+DATASETS_REGISTRY_PATH = Path(
+    os.environ.get("DATASETS_REGISTRY_PATH", str(REPO_ROOT / "registries" / "datasets.json"))
+).resolve()
+DB_PATH = os.environ.get("DB_PATH", str(REPO_ROOT / "runs.db"))
+BASIC_AUTH_USER = os.environ.get("BASIC_AUTH_USER", "admin")
+BASIC_AUTH_PASS = os.environ.get("BASIC_AUTH_PASS", "admin")
+AUTH_PASSWORD_HASH = os.environ.get("AUTH_PASSWORD_HASH")
+SESSION_SECRET = os.environ.get("SESSION_SECRET", "change-me")
+SESSION_TTL_MINUTES = int(os.environ.get("SESSION_TTL_MINUTES", "480"))
+COOKIE_NAME = os.environ.get("COOKIE_NAME", "sptx_session")
+COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
+COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "lax")
+CSRF_COOKIE_NAME = os.environ.get("CSRF_COOKIE_NAME", "sptx_csrf")
+CSRF_HEADER_NAME = os.environ.get("CSRF_HEADER_NAME", "X-CSRF-Token")
+ARTIFACT_ROOTS = [
+    Path(value.strip()).resolve()
+    for value in os.environ.get("ARTIFACT_ROOTS", str(RUNS_DIR)).split(",")
+    if value.strip()
+]
+WORKER_ENABLED = os.environ.get("WORKER_ENABLED", "false").lower() == "true"
+WORKER_POLL_SECONDS = int(os.environ.get("WORKER_POLL_SECONDS", "10"))
+QUEUE_ENABLED = os.environ.get("QUEUE_ENABLED", "true").lower() == "true"
+PREFLIGHT_CHECK_PATHS = os.environ.get("PREFLIGHT_CHECK_PATHS", "true").lower() == "true"
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+    if origin.strip()
+]
+RUN_RETENTION_DAYS = int(os.environ.get("RUN_RETENTION_DAYS", "30"))
+CLEANUP_INTERVAL_SECONDS = int(os.environ.get("CLEANUP_INTERVAL_SECONDS", "3600"))
+DISK_WARN_FREE_GB = int(os.environ.get("DISK_WARN_FREE_GB", "50"))
+DISK_WARN_PERCENT = int(os.environ.get("DISK_WARN_PERCENT", "10"))
+PREFLIGHT_SLURM_FALLBACK = os.environ.get("PREFLIGHT_SLURM_FALLBACK", "false").lower() == "true"
+PREFLIGHT_SLURM_TIMEOUT_SECONDS = int(os.environ.get("PREFLIGHT_SLURM_TIMEOUT_SECONDS", "600"))
+PREFLIGHT_SLURM_POLL_SECONDS = int(os.environ.get("PREFLIGHT_SLURM_POLL_SECONDS", "5"))
+PREFLIGHT_CACHE_TTL_SECONDS = int(os.environ.get("PREFLIGHT_CACHE_TTL_SECONDS", "300"))
+
+
+def validate_settings() -> None:
+    if not SESSION_SECRET or SESSION_SECRET.strip() == "" or SESSION_SECRET == "change-me":
+        raise RuntimeError("SESSION_SECRET must be set to a non-default value.")
+    if not AUTH_PASSWORD_HASH:
+        if not BASIC_AUTH_USER or not BASIC_AUTH_PASS:
+            raise RuntimeError(
+                "BASIC_AUTH_USER and BASIC_AUTH_PASS must be set when AUTH_PASSWORD_HASH is not provided."
+            )
+        if BASIC_AUTH_USER == "admin" and BASIC_AUTH_PASS == "admin":
+            raise RuntimeError("BASIC_AUTH_* must be changed from the default or set AUTH_PASSWORD_HASH.")
+    if not ARTIFACT_ROOTS:
+        raise RuntimeError("ARTIFACT_ROOTS must include at least one path.")
+    if not RUNS_DIR.is_absolute():
+        raise RuntimeError("RUNS_DIR must be an absolute path.")
+    for root in ARTIFACT_ROOTS:
+        if not root.is_absolute():
+            raise RuntimeError("ARTIFACT_ROOTS must contain absolute paths.")
+    enforce_allowed_path(RUNS_DIR, ARTIFACT_ROOTS)

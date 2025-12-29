@@ -1,0 +1,46 @@
+[
+    {
+        "id": "colon_cosmx_v1",
+        "label": "Colon CosMx V1",
+        "organ": "colon",
+        "platform": "cosmx",
+        "default_resources": {
+            "time": "24:00:00",
+            "mem": "64gb",
+            "cpus_per_task": 16,
+            "partition": "hpg-ai"
+        },
+        "default_params": {
+            "mode": "fixed_k",
+            "n_components": 12,
+            "reference_key": "nanostring_reference"
+        },
+        "stages": [
+            "cell2loc_nmf",
+            "report"
+        ]
+    },
+    {
+        "id": "colon_cosmx_paper",
+        "label": "Colon CosMx Paper Ready",
+        "organ": "colon",
+        "platform": "cosmx",
+        "default_resources": {
+            "time": "48:00:00",
+            "mem": "128gb",
+            "cpus_per_task": 32,
+            "partition": "hpg-ai"
+        },
+        "default_params": {
+            "mode": "elbow_k",
+            "k_min": 5,
+            "k_max": 20
+        },
+        "stages": [
+            "cell2loc_nmf",
+            "post_nmf",
+            "mlp",
+            "report"
+        ]
+    }
+]
