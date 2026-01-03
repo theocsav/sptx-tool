@@ -14,9 +14,11 @@
   "ref_model_name": "cell2location_reference_model_k4",
   "inf_aver_name": "inf_aver_k4.csv",
   "n_components": 4,
-  "stages": ["cell2loc_nmf", "post_nmf", "mlp", "report"],
+  "stages": ["cell2loc_nmf", "post_nmf", "rcausal_mgm", "mlp", "report"],
   "post_nmf_mode": "papermill",
   "post_nmf_notebook_path": "pipeline_assets/IBD_Post_NMF_Analysis.ipynb",
+  "rcausal_mode": "python",
+  "rcausal_script_path": "pipeline_assets/IBD_RCausalMGM_Preparation.py",
   "mlp_script_path": "pipeline_assets/IBD_MLP_44Features.py",
   "report_title": "NicheRunner Paper Run",
   "run_dir": "runs/ibd_cosmx_k4",
@@ -26,9 +28,9 @@
     "cpus_per_task": 2
   },
   "default_resources": {
-    "time": "72:00:00",
-    "cpus_per_task": 32,
-    "mem": "500gb",
+    "time": "96h",
+    "cpus_per_task": 8,
+    "mem": "400gb",
     "qos": "standard"
   },
   "default_params": {
@@ -38,9 +40,9 @@
   "slurm": {
     "enabled": true,
     "job_name": "cell2location_IBD_3000_NMF-k4_500samples",
-    "time": "72:00:00",
-    "mem": "500gb",
-    "cpus_per_task": 32,
+    "time": "96h",
+    "mem": "400gb",
+    "cpus_per_task": 8,
     "qos": "standard",
     "mail_user": "you@example.edu",
     "mail_type": "ALL",

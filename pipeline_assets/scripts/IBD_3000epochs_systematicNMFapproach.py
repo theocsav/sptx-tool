@@ -460,6 +460,7 @@ print("\n--- Starting NMF Analysis ---")
 nmf_output_dir = "/blue/pbenos/tan.m/IBDCosMx_scRNAseq/Outputs"
 os.makedirs(nmf_output_dir, exist_ok=True)
 print(f"NMF outputs will be saved to: {nmf_output_dir}")
+nmf_h5ad_path = os.path.join(nmf_output_dir, "cosmx_with_nmf.h5ad")
 
 # PREREQUISITE CHECK:
 try:
@@ -536,6 +537,8 @@ new_nmf_column_name = 'dominant_nmf_factor'
 adata_st.obs[new_nmf_column_name] = pd.Series(np.argmax(W, axis=1), index=adata_st.obs.index)
 adata_st.obs[new_nmf_column_name] = adata_st.obs[new_nmf_column_name].astype('category')
 print(f"? NMF dominant factor assigned to adata_st.obs['{new_nmf_column_name}'].")
+adata_st.obs["NMF_factor"] = adata_st.obs[new_nmf_column_name].astype(int)
+adata_st.obs["NMF_factor"] = adata_st.obs["NMF_factor"].astype("category")
 
 
 # --- NEW: Plot and save NMF factor distribution ---
@@ -587,5 +590,8 @@ if "cell_type" in adata_st.obs.columns:
         print("WARNING: Crosstab resulted in an empty DataFrame.")
 else:
     print("NMF niche-celltype proportions table could not be generated as 'cell_type' column is missing.")
+
+adata_st.write(nmf_h5ad_path)
+print(f"NMF annotated h5ad saved to: {nmf_h5ad_path}")
 
 print("\n--- NMF Analysis Complete ---")

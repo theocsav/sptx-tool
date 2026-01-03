@@ -11,9 +11,10 @@ from pathlib import Path
 DEFAULT_FIXED_TEMPLATE = "pipeline_assets/scripts/IBD_3000epochs_500samples_NMF-k4.py"
 DEFAULT_ELBOW_TEMPLATE = "pipeline_assets/scripts/IBD_3000epochs_systematicNMFapproach.py"
 DEFAULT_POST_NMF_NOTEBOOK = "pipeline_assets/IBD_Post_NMF_Analysis.ipynb"
+DEFAULT_RCAUSAL_NOTEBOOK = "pipeline_assets/IBD_RCausalMGM_Preparation.ipynb"
 DEFAULT_MLP_SCRIPT = "pipeline_assets/IBD_MLP_44Features.py"
 DEFAULT_REPORT_TITLE = "NicheRunner Run Report"
-ALLOWED_STAGES = ("cell2loc_nmf", "post_nmf", "mlp", "report")
+ALLOWED_STAGES = ("cell2loc_nmf", "post_nmf", "rcausal_mgm", "mlp", "report")
 
 
 def norm_path(value):
@@ -95,6 +96,25 @@ def build_papermill_command(input_path: Path, output_path: Path, parameters: dic
     return cmd
 
 
+def build_rcausal_args(config: dict, output_dir: str) -> list[str]:
+    args = config.get("rcausal_args")
+    if args:
+        return list(args)
+    defaults = []
+    output_base = config.get("rcausal_output_dir") or str(Path(output_dir) / "rcausal_mgm")
+    defaults.extend(["--output-dir", output_base])
+    default_h5ad = config.get("rcausal_h5ad_path") or str(Path(output_dir) / "cosmx_with_nmf.h5ad")
+    niche_h5ad = config.get("rcausal_niche_h5ad_path") or default_h5ad or config.get("cosmx_h5ad_path")
+    neighborhood_h5ad = (
+        config.get("rcausal_neighborhood_h5ad_path") or default_h5ad or config.get("cosmx_h5ad_path")
+    )
+    if niche_h5ad:
+        defaults.extend(["--niche-h5ad", niche_h5ad])
+    if neighborhood_h5ad:
+        defaults.extend(["--neighborhood-h5ad", neighborhood_h5ad])
+    return defaults
+
+
 def build_run_script(run_dir: Path, output_dir: Path, stage_commands) -> str:
     run_dir_str = norm_path(str(run_dir))
     output_dir_str = norm_path(str(output_dir))
@@ -142,6 +162,7 @@ GROUP_RULES = [
     ("cell2location", ["w_sf", "inferred_cell_type", "spatial_model", "ref_model", "inf_aver", "training_history", "QC"]),
     ("niches", ["NMF_", "nmf_", "niche"]),
     ("post_nmf", ["post_nmf", "Post-NMF", "post-nmf", "feature", "enrichment", "niche_gene"]),
+    ("rcausal_mgm", ["RCausalMGM", "rcausal", "NeighborhoodInteractions", "NicheCompositions"]),
     ("models", ["MLP", "mlp", "confusion", "metrics", "predictions", "best_params"]),
     ("logs", ["logs/"]),
     ("report", ["report/"]),
@@ -521,6 +542,33 @@ def main():
             args_list = config.get("post_nmf_args", [])
             extra_args = " ".join(shell_quote(arg) for arg in args_list)
             stage_commands.append(("post_nmf", f"python {shell_quote(script_copy)} {extra_args}".strip()))
+
+    if "rcausal_mgm" in stages:
+        rcausal_mode = config.get("rcausal_mode", "papermill")
+        if rcausal_mode not in ("papermill", "python"):
+            raise ValueError("rcausal_mode must be 'papermill' or 'python'.")
+        if rcausal_mode == "papermill":
+            notebook_source = resolve_template(root, config.get("rcausal_notebook_path", DEFAULT_RCAUSAL_NOTEBOOK))
+            if not notebook_source.exists():
+                raise FileNotFoundError(f"RCausalMGM notebook not found: {notebook_source}")
+            notebook_copy = copy_resource(notebook_source, run_dir_path)
+            output_notebook = run_dir_path / f"{run_name}_rcausal_mgm.ipynb"
+            parameters = {"output_dir": output_dir, "run_dir": str(run_dir_path)}
+            parameters.update(config.get("rcausal_parameters", {}))
+            stage_commands.append(
+                ("rcausal_mgm", build_papermill_command(notebook_copy, output_notebook, parameters))
+            )
+        else:
+            script_source = config.get("rcausal_script_path")
+            if not script_source:
+                raise ValueError("rcausal_script_path is required when rcausal_mode=python.")
+            script_source = resolve_template(root, script_source)
+            if not script_source.exists():
+                raise FileNotFoundError(f"RCausalMGM script not found: {script_source}")
+            script_copy = copy_resource(script_source, run_dir_path)
+            args_list = build_rcausal_args(config, output_dir)
+            extra_args = " ".join(shell_quote(arg) for arg in args_list)
+            stage_commands.append(("rcausal_mgm", f"python {shell_quote(script_copy)} {extra_args}".strip()))
 
     if "mlp" in stages:
         script_source = resolve_template(root, config.get("mlp_script_path", DEFAULT_MLP_SCRIPT))

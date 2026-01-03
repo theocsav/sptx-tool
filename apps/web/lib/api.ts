@@ -40,6 +40,15 @@ export type Preset = {
   template_path?: string;
   post_nmf_notebook_path?: string;
   post_nmf_mode?: string;
+  rcausal_notebook_path?: string;
+  rcausal_script_path?: string;
+  rcausal_mode?: string;
+  rcausal_parameters?: Record<string, unknown>;
+  rcausal_args?: string[];
+  rcausal_output_dir?: string;
+  rcausal_h5ad_path?: string;
+  rcausal_niche_h5ad_path?: string;
+  rcausal_neighborhood_h5ad_path?: string;
   mlp_script_path?: string;
   default_resources?: {
     time?: string;

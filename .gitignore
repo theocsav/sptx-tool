@@ -32,3 +32,6 @@ runs.db
 # OS
 .DS_Store
 Thumbs.db
+
+# test
+test_files/

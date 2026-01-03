@@ -66,9 +66,11 @@ Use `stages` in the run config to run multiple pipeline steps in one SLURM job:
 
 ```json
 {
-  "stages": ["cell2loc_nmf", "post_nmf", "mlp", "report"],
+  "stages": ["cell2loc_nmf", "post_nmf", "rcausal_mgm", "mlp", "report"],
   "post_nmf_mode": "papermill",
   "post_nmf_notebook_path": "pipeline_assets/IBD_Post_NMF_Analysis.ipynb",
+  "rcausal_mode": "python",
+  "rcausal_script_path": "pipeline_assets/IBD_RCausalMGM_Preparation.py",
   "mlp_script_path": "pipeline_assets/IBD_MLP_44Features.py",
   "report_title": "NicheRunner Paper Run"
 }
@@ -80,6 +82,7 @@ Use `POST /runs/preflight` with the same config payload to validate required fie
 Set `check_paths=false` to skip filesystem checks.
 
 Stage B (`post_nmf`) requires `papermill` installed in the SLURM conda environment.
+The RCausalMGM stage (`rcausal_mgm`) defaults to running the notebook with papermill; set `rcausal_mode=python` and `rcausal_script_path` to use a script instead. When using the script, `rcausal_args` defaults to `--output-dir <output_dir>/rcausal_mgm` plus `--niche-h5ad`/`--neighborhood-h5ad` from `rcausal_*_h5ad_path` or `cosmx_h5ad_path`.
 The report stage generates `report/report.html`, `report/figures/*`, `report/tables/*`, and `artifacts/manifest.json`; PDF generation uses `pandoc` if available.
 
 Preflight join-key validation (on by default) compares h5ad obs to metadata using `unique_cell_id` or `fov+cell_ID` and returns counts.

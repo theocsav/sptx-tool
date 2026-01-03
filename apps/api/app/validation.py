@@ -9,8 +9,9 @@ from .storage import enforce_allowed_path
 
 REQUIRED_KEYS = ("cosmx_h5ad_path", "reference_h5ad_path", "cell_metadata_path")
 PATH_KEYS = REQUIRED_KEYS + ("ref_model_dir",)
-ALLOWED_STAGES = ("cell2loc_nmf", "post_nmf", "mlp", "report")
+ALLOWED_STAGES = ("cell2loc_nmf", "post_nmf", "rcausal_mgm", "mlp", "report")
 DEFAULT_POST_NMF_NOTEBOOK = "pipeline_assets/IBD_Post_NMF_Analysis.ipynb"
+DEFAULT_RCAUSAL_NOTEBOOK = "pipeline_assets/IBD_RCausalMGM_Preparation.ipynb"
 DEFAULT_MLP_SCRIPT = "pipeline_assets/IBD_MLP_44Features.py"
 DEFAULT_REQUIRED_OBS_KEYS = ("fov", "cell_ID", "patient", "disease_status")
 DEFAULT_REQUIRED_METADATA_COLUMNS = ("CenterX_global_px", "CenterY_global_px", "fov", "cell_ID")
@@ -221,6 +222,22 @@ def validate_config(
             notebook_path = config.get("post_nmf_notebook_path", DEFAULT_POST_NMF_NOTEBOOK)
             if check_paths and not resolve_repo_path(notebook_path).exists():
                 errors.append(f"Post-NMF notebook not found: {notebook_path}")
+
+    rcausal_mode = config.get("rcausal_mode", "papermill")
+    if rcausal_mode not in ("papermill", "python"):
+        errors.append("rcausal_mode must be 'papermill' or 'python'.")
+
+    if "rcausal_mgm" in stages:
+        if rcausal_mode == "python":
+            script_path = config.get("rcausal_script_path")
+            if not script_path:
+                errors.append("rcausal_script_path is required when rcausal_mode=python.")
+            elif check_paths and not resolve_repo_path(script_path).exists():
+                errors.append(f"RCausalMGM script not found: {script_path}")
+        else:
+            notebook_path = config.get("rcausal_notebook_path", DEFAULT_RCAUSAL_NOTEBOOK)
+            if check_paths and not resolve_repo_path(notebook_path).exists():
+                errors.append(f"RCausalMGM notebook not found: {notebook_path}")
 
     if "mlp" in stages:
         script_path = config.get("mlp_script_path", DEFAULT_MLP_SCRIPT)

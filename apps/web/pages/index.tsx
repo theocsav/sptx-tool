@@ -14,10 +14,10 @@ import {
 } from "../lib/api";
 
 const DEFAULT_MIN_STAGES = ["cell2loc_nmf"];
-const DEFAULT_PAPER_STAGES = ["cell2loc_nmf", "post_nmf", "mlp", "report"];
-const RESOURCE_TIME_OPTIONS = ["1h", "2h", "6h", "12h", "24h"];
+const DEFAULT_PAPER_STAGES = ["cell2loc_nmf", "post_nmf", "rcausal_mgm", "mlp", "report"];
+const RESOURCE_TIME_OPTIONS = ["1h", "2h", "6h", "12h", "24h", "96h"];
 const RESOURCE_CPU_OPTIONS = [4, 8, 16, 32];
-const RESOURCE_MEM_OPTIONS = ["16gb", "32gb", "64gb", "128gb"];
+const RESOURCE_MEM_OPTIONS = ["16gb", "32gb", "64gb", "128gb", "400gb"];
 const PIPELINE_COMMIT = process.env.NEXT_PUBLIC_PIPELINE_COMMIT || "not set";
 
 type PreflightResult = {
@@ -82,9 +82,9 @@ export default function Home() {
   const [referencePath, setReferencePath] = useState("");
   const [outputDir, setOutputDir] = useState("");
   const [refModelDir, setRefModelDir] = useState("");
-  const [slurmTime, setSlurmTime] = useState("24h");
+  const [slurmTime, setSlurmTime] = useState("96h");
   const [slurmCpus, setSlurmCpus] = useState(8);
-  const [slurmMem, setSlurmMem] = useState("64gb");
+  const [slurmMem, setSlurmMem] = useState("400gb");
   const [slurmAccount, setSlurmAccount] = useState("");
   const [slurmPartition, setSlurmPartition] = useState("");
   const [slurmQos, setSlurmQos] = useState("");
@@ -159,9 +159,9 @@ export default function Home() {
     setKMax(Number(defaults.k_max ?? 20));
 
     const resources = selectedPreset.default_resources || {};
-    setSlurmTime((resources.time as string) || "24h");
+    setSlurmTime((resources.time as string) || "96h");
     setSlurmCpus(Number(resources.cpus_per_task ?? 8));
-    setSlurmMem((resources.mem as string) || "64gb");
+    setSlurmMem((resources.mem as string) || "400gb");
 
     const slurm = selectedPreset.slurm || {};
     setSlurmAccount((slurm.account as string) || "");
@@ -258,6 +258,33 @@ export default function Home() {
     }
     if (selectedPreset?.post_nmf_mode) {
       config.post_nmf_mode = selectedPreset.post_nmf_mode;
+    }
+    if (selectedPreset?.rcausal_notebook_path) {
+      config.rcausal_notebook_path = selectedPreset.rcausal_notebook_path;
+    }
+    if (selectedPreset?.rcausal_script_path) {
+      config.rcausal_script_path = selectedPreset.rcausal_script_path;
+    }
+    if (selectedPreset?.rcausal_mode) {
+      config.rcausal_mode = selectedPreset.rcausal_mode;
+    }
+    if (selectedPreset?.rcausal_parameters) {
+      config.rcausal_parameters = selectedPreset.rcausal_parameters;
+    }
+    if (selectedPreset?.rcausal_args) {
+      config.rcausal_args = selectedPreset.rcausal_args;
+    }
+    if (selectedPreset?.rcausal_output_dir) {
+      config.rcausal_output_dir = selectedPreset.rcausal_output_dir;
+    }
+    if (selectedPreset?.rcausal_h5ad_path) {
+      config.rcausal_h5ad_path = selectedPreset.rcausal_h5ad_path;
+    }
+    if (selectedPreset?.rcausal_niche_h5ad_path) {
+      config.rcausal_niche_h5ad_path = selectedPreset.rcausal_niche_h5ad_path;
+    }
+    if (selectedPreset?.rcausal_neighborhood_h5ad_path) {
+      config.rcausal_neighborhood_h5ad_path = selectedPreset.rcausal_neighborhood_h5ad_path;
     }
     if (selectedPreset?.mlp_script_path) {
       config.mlp_script_path = selectedPreset.mlp_script_path;
