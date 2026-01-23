@@ -16,11 +16,11 @@ import matplotlib.pyplot as plt  # noqa: E402
 import seaborn as sns  # noqa: E402
 
 
-DEFAULT_NICHE_H5AD = "/blue/pbenos/tan.m/IBDCosMx_scRNAseq/CosMx/Corrected_CompleteCosMx.h5ad"
+DEFAULT_NICHE_H5AD = "/blue/kejun.huang/tan.m/IBDCosMx_scRNAseq/CosMx/Corrected_CompleteCosMx.h5ad"
 DEFAULT_NEIGHBORHOOD_H5AD = (
-    "/blue/pbenos/tan.m/IBDCosMx_scRNAseq/CosMx/CompleteCosMx_singlecellspatialresolution.h5ad"
+    "/blue/kejun.huang/tan.m/IBDCosMx_scRNAseq/CosMx/CompleteCosMx_singlecellspatialresolution.h5ad"
 )
-DEFAULT_BASE_DIR = "/blue/pbenos/tan.m/IBDCosMx_scRNAseq/CosMx/Post-NMF_Analysis/RCausalMGM"
+DEFAULT_BASE_DIR = "/blue/kejun.huang/tan.m/IBDCosMx_scRNAseq/CosMx/Post-NMF_Analysis/RCausalMGM"
 DEFAULT_NICHE_DIR = os.path.join(DEFAULT_BASE_DIR, "NicheCompositions")
 DEFAULT_NEIGHBORHOOD_DIR = os.path.join(DEFAULT_BASE_DIR, "NeighborhoodInteractions")
 

@@ -1,0 +1,11 @@
+{
+  "run_name": "dev_smoke",
+  "mode": "fixed_k",
+  "n_components": 4,
+  "stages": ["cell2loc_nmf"],
+  "cosmx_h5ad_path": "test_files/GSE234713_CosMx_combined.h5ad",
+  "reference_h5ad_path": "test_files/combined_10x_reference_final.h5ad",
+  "cell_metadata_path": "test_files/dev_cell_metadata.csv",
+  "run_dir": "runs/dev_smoke",
+  "output_dir": "runs/dev_smoke/outputs"
+}

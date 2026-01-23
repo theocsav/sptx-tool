@@ -28,6 +28,14 @@ def init_db() -> None:
                 output_dir TEXT,
                 config_path TEXT,
                 job_id TEXT,
+                slurm_state TEXT,
+                slurm_reason TEXT,
+                slurm_exit_code INTEGER,
+                slurm_exit_signal INTEGER,
+                slurm_elapsed TEXT,
+                submitted_at TEXT,
+                started_at TEXT,
+                finished_at TEXT,
                 message TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
@@ -45,6 +53,21 @@ def init_db() -> None:
             )
             """
         )
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(runs)").fetchall()}
+        missing = {
+            "slurm_state": "TEXT",
+            "slurm_reason": "TEXT",
+            "slurm_exit_code": "INTEGER",
+            "slurm_exit_signal": "INTEGER",
+            "slurm_elapsed": "TEXT",
+            "submitted_at": "TEXT",
+            "started_at": "TEXT",
+            "finished_at": "TEXT",
+        }
+        for name, column_type in missing.items():
+            if name not in columns:
+                conn.execute(f"ALTER TABLE runs ADD COLUMN {name} {column_type}")
+
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(run_queue)").fetchall()}
         if "submit" not in columns:
             conn.execute("ALTER TABLE run_queue ADD COLUMN submit INTEGER NOT NULL DEFAULT 1")

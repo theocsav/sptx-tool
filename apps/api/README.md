@@ -83,7 +83,7 @@ Set `check_paths=false` to skip filesystem checks.
 
 Stage B (`post_nmf`) requires `papermill` installed in the SLURM conda environment.
 The RCausalMGM stage (`rcausal_mgm`) defaults to running the notebook with papermill; set `rcausal_mode=python` and `rcausal_script_path` to use a script instead. When using the script, `rcausal_args` defaults to `--output-dir <output_dir>/rcausal_mgm` plus `--niche-h5ad`/`--neighborhood-h5ad` from `rcausal_*_h5ad_path` or `cosmx_h5ad_path`.
-The report stage generates `report/report.html`, `report/figures/*`, `report/tables/*`, and `artifacts/manifest.json`; PDF generation uses `pandoc` if available.
+The report stage generates `report/report.html`, `report/figures/*`, `report/tables/*`, `artifacts/manifest.json`, and `artifacts/run_summary.json`; PDF generation uses `pandoc` if available.
 
 Preflight join-key validation (on by default) compares h5ad obs to metadata using `unique_cell_id` or `fov+cell_ID` and returns counts.
 Configure with:
@@ -101,6 +101,29 @@ You can override SLURM resources for fallback checks with `preflight_slurm` in t
 
 Preflight join-key results are cached by `(dataset_id, manifest_hash, preset_id)` for a short TTL to avoid re-reading large h5ad files. Set `PREFLIGHT_CACHE_TTL_SECONDS`.
 
+## Dry run
+
+Use `POST /runs/dry-run` to validate a config and generate the pipeline scripts without creating a run record or submitting a job.
+It writes `config.json`, `config.resolved.json`, `run.sh`, and optionally `submit.sh` under `RUNS_DIR/<run_name>`.
+
+Example payload:
+
+```json
+{
+  "run_name": "dev_smoke",
+  "preset_path": "ibd_cosmx_k4.json",
+  "emit_sbatch": true,
+  "check_paths": true,
+  "config": {
+    "cosmx_h5ad_path": "/blue/.../GSE234713_CosMx_combined.h5ad",
+    "reference_h5ad_path": "/blue/.../combined_10x_reference_final.h5ad",
+    "cell_metadata_path": "/blue/.../GSE234713_CosMx_cell_metadata.csv.gz"
+  }
+}
+```
+
+The response includes validation results plus pipeline stdout/stderr and the resolved config.
+
 ## Rerun
 
 Use `POST /runs/{run_id}/rerun` with:
@@ -114,6 +137,43 @@ Use `POST /runs/{run_id}/rerun` with:
 ```
 
 This reuses the original config, strips runtime-only keys, and regenerates output paths when the prior output lived under the old run directory.
+
+## RunState
+
+The API returns a RunState object for each run via `GET /runs` and `GET /runs/{run_id}`.
+Fields are stored in `runs.db`:
+
+- `id`
+- `run_name`
+- `status`
+- `stage` (reserved; not actively used in the pipeline yet)
+- `run_dir`
+- `output_dir`
+- `config_path`
+- `job_id`
+- `slurm_state`
+- `slurm_reason`
+- `slurm_exit_code`
+- `slurm_exit_signal`
+- `slurm_elapsed`
+- `submitted_at`
+- `started_at`
+- `finished_at`
+- `message`
+- `created_at`
+- `updated_at`
+
+Common status values:
+
+`created`, `queued`, `prepared`, `submitted`, `running`, `succeeded`, `failed`, `canceled`, `error`, `unknown`.
+
+## Run summary
+
+The report stage writes `artifacts/run_summary.json`. Fetch it via:
+
+```
+GET /runs/{run_id}/summary
+```
 
 ## Environment
 

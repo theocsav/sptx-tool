@@ -27,8 +27,8 @@ def load_config(path):
 
 
 def replace_assignment(text, var_name, value_expr):
-    pattern = r"^{}\s*=.*$".format(re.escape(var_name))
-    replacement = f"{var_name} = {value_expr}"
+    pattern = r"^(?P<indent>\s*){}\s*=.*$".format(re.escape(var_name))
+    replacement = rf"\g<indent>{var_name} = {value_expr}"
     return re.subn(pattern, replacement, text, flags=re.MULTILINE)
 
 
@@ -77,6 +77,102 @@ def normalize_stages(config):
         if stage not in ALLOWED_STAGES:
             raise ValueError(f"Invalid stage '{stage}'. Allowed: {', '.join(ALLOWED_STAGES)}")
     return stages
+
+
+def report_validation(errors, warnings):
+    if warnings:
+        print("Warnings:")
+        for warning in warnings:
+            print(f"- {warning}")
+    if errors:
+        print("Errors:")
+        for error in errors:
+            print(f"- {error}")
+        return
+    print("Validation OK.")
+
+
+def validate_cli_config(config, root, check_paths=True):
+    errors = []
+    warnings = []
+
+    for key in ("reference_h5ad_path", "cosmx_h5ad_path", "cell_metadata_path"):
+        value = config.get(key)
+        if not value:
+            errors.append(f"Missing required config key: {key}")
+            continue
+        if check_paths and not Path(value).exists():
+            errors.append(f"Path does not exist: {key} -> {value}")
+
+    mode = config.get("mode", "fixed_k")
+    if mode not in ("fixed_k", "elbow_k"):
+        errors.append("mode must be 'fixed_k' or 'elbow_k'.")
+    elif mode == "fixed_k":
+        if config.get("n_components") is None and config.get("k") is None:
+            errors.append("Fixed-k mode requires 'n_components' or 'k'.")
+    else:
+        k_min = int(config.get("k_min", 2))
+        k_max = int(config.get("k_max", 20))
+        if k_max < k_min:
+            errors.append("k_max must be >= k_min.")
+
+    try:
+        stages = normalize_stages(config)
+    except ValueError as exc:
+        errors.append(str(exc))
+        stages = []
+
+    template_path = config.get("template_path")
+    if not template_path:
+        template_path = DEFAULT_FIXED_TEMPLATE if mode == "fixed_k" else DEFAULT_ELBOW_TEMPLATE
+    template_path = resolve_template(root, template_path)
+    if check_paths and not template_path.exists():
+        errors.append(f"Template not found: {template_path}")
+
+    if "post_nmf" in stages:
+        post_nmf_mode = config.get("post_nmf_mode", "papermill")
+        if post_nmf_mode not in ("papermill", "python"):
+            errors.append("post_nmf_mode must be 'papermill' or 'python'.")
+        elif post_nmf_mode == "papermill":
+            notebook_path = resolve_template(root, config.get("post_nmf_notebook_path", DEFAULT_POST_NMF_NOTEBOOK))
+            if check_paths and not notebook_path.exists():
+                errors.append(f"Post-NMF notebook not found: {notebook_path}")
+        else:
+            script_path = config.get("post_nmf_script_path")
+            if not script_path:
+                errors.append("post_nmf_script_path is required when post_nmf_mode=python.")
+            else:
+                script_path = resolve_template(root, script_path)
+                if check_paths and not script_path.exists():
+                    errors.append(f"Post-NMF script not found: {script_path}")
+
+    if "rcausal_mgm" in stages:
+        rcausal_mode = config.get("rcausal_mode", "papermill")
+        if rcausal_mode not in ("papermill", "python"):
+            errors.append("rcausal_mode must be 'papermill' or 'python'.")
+        elif rcausal_mode == "papermill":
+            notebook_path = resolve_template(root, config.get("rcausal_notebook_path", DEFAULT_RCAUSAL_NOTEBOOK))
+            if check_paths and not notebook_path.exists():
+                errors.append(f"RCausalMGM notebook not found: {notebook_path}")
+        else:
+            script_path = config.get("rcausal_script_path")
+            if not script_path:
+                errors.append("rcausal_script_path is required when rcausal_mode=python.")
+            else:
+                script_path = resolve_template(root, script_path)
+                if check_paths and not script_path.exists():
+                    errors.append(f"RCausalMGM script not found: {script_path}")
+
+    if "mlp" in stages:
+        script_path = resolve_template(root, config.get("mlp_script_path", DEFAULT_MLP_SCRIPT))
+        if check_paths and not script_path.exists():
+            errors.append(f"MLP script not found: {script_path}")
+
+    slurm = config.get("slurm", {})
+    if slurm.get("enabled") and not slurm.get("conda_env"):
+        warnings.append("slurm.enabled is true but slurm.conda_env is missing.")
+
+    return errors, warnings
 
 
 def copy_resource(source: Path, run_dir: Path) -> Path:
@@ -140,7 +236,7 @@ def build_run_script(run_dir: Path, output_dir: Path, stage_commands) -> str:
     return "\n".join(lines)
 
 
-def build_report_script(output_dir: Path, stages, report_title: str, report_notes: str) -> str:
+def build_report_script(output_dir: Path, stages, report_title: str, report_notes: str, run_name: str) -> str:
     return f"""#!/usr/bin/env python3
 import json
 import os
@@ -153,6 +249,7 @@ OUTPUT_DIR = Path({json.dumps(str(output_dir))})
 STAGES = {json.dumps(stages)}
 REPORT_TITLE = {json.dumps(report_title)}
 REPORT_NOTES = {json.dumps(report_notes)}
+RUN_NAME = {json.dumps(run_name)}
 
 FIGURE_EXTS = (".png", ".jpg", ".jpeg", ".svg", ".pdf")
 TABLE_EXTS = (".csv", ".tsv", ".parquet", ".xlsx", ".xls")
@@ -265,8 +362,9 @@ def main() -> int:
     for group in groups:
         groups[group] = sorted(groups[group])
 
+    generated_at = datetime.now(timezone.utc).isoformat()
     manifest = {{
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": generated_at,
         "output_dir": str(OUTPUT_DIR),
         "stages": STAGES,
         "groups": groups,
@@ -278,6 +376,21 @@ def main() -> int:
     }}
     manifest_path = artifacts_dir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    run_summary = {{
+        "generated_at": generated_at,
+        "run_name": RUN_NAME,
+        "output_dir": str(OUTPUT_DIR),
+        "stages": STAGES,
+        "report_title": REPORT_TITLE,
+        "report_notes": REPORT_NOTES,
+        "report_path": "report/report.html",
+        "manifest_path": "artifacts/manifest.json",
+        "figures_count": len(figure_assets),
+        "tables_count": len(table_assets),
+    }}
+    run_summary_path = artifacts_dir / "run_summary.json"
+    run_summary_path.write_text(json.dumps(run_summary, indent=2), encoding="utf-8")
 
     lines = []
     lines.append("<!doctype html>")
@@ -437,9 +550,19 @@ def main():
     parser = argparse.ArgumentParser(description="Generate a patched pipeline script and optional SLURM wrapper.")
     parser.add_argument("--config", required=True, help="Path to JSON config file.")
     parser.add_argument("--emit-sbatch", action="store_true", help="Write a submit.sh in the run directory.")
+    parser.add_argument("--dry-run", action="store_true", help="Validate and generate scripts without running.")
+    parser.add_argument("--validate", action="store_true", help="Validate the config and exit without writing files.")
+    parser.add_argument("--skip-path-checks", action="store_true", help="Skip existence checks for input paths.")
     parser.add_argument("--run", action="store_true", help="Run the patched script locally.")
     parser.add_argument("--submit", action="store_true", help="Run sbatch on the generated submit.sh.")
     args = parser.parse_args()
+
+    if args.validate and args.dry_run:
+        raise ValueError("Use --validate or --dry-run, not both.")
+    if args.validate and (args.run or args.submit):
+        raise ValueError("--validate cannot be combined with --run or --submit.")
+    if args.dry_run and (args.run or args.submit):
+        raise ValueError("--dry-run cannot be combined with --run or --submit.")
 
     root = Path(__file__).resolve().parent
     config_path = Path(args.config)
@@ -450,6 +573,14 @@ def main():
     run_name = config.get("run_name")
     if not run_name:
         raise ValueError("Config must include 'run_name'.")
+
+    if args.validate or args.dry_run:
+        errors, warnings = validate_cli_config(config, root, check_paths=not args.skip_path_checks)
+        report_validation(errors, warnings)
+        if errors:
+            raise SystemExit(1)
+        if args.validate:
+            return
 
     mode = config.get("mode", "fixed_k")
     if mode not in ("fixed_k", "elbow_k"):
@@ -584,7 +715,10 @@ def main():
         report_title = config.get("report_title", DEFAULT_REPORT_TITLE)
         report_notes = config.get("report_notes", "")
         report_script_path = run_dir_path / "generate_report.py"
-        write_text(report_script_path, build_report_script(Path(output_dir), stages, report_title, report_notes))
+        write_text(
+            report_script_path,
+            build_report_script(Path(output_dir), stages, report_title, report_notes, run_name),
+        )
         stage_commands.append(("report", f"python {shell_quote(report_script_path)}"))
 
     if not stage_commands:

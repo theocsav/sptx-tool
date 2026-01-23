@@ -57,7 +57,7 @@ from scipy.stats import loguniform
 from tqdm import tqdm
 
 # --- Define output file paths ---
-output_dir = "/blue/pbenos/tan.m/IBDCosMx_scRNAseq/CosMx/Post-NMF_Analysis/MLP_FewerParams"
+output_dir = "/blue/kejun.huang/tan.m/IBDCosMx_scRNAseq/CosMx/Post-NMF_Analysis/MLP_FewerParams"
 log_file_path = os.path.join(output_dir, 'mlp_analysis_log.txt')
 cm_csv_path = os.path.join(output_dir, 'confusion_matrix.csv')
 cm_png_path = os.path.join(output_dir, 'confusion_matrix.png')
@@ -69,7 +69,7 @@ with open(log_file_path, 'w') as f:
     sys.stdout = f
 
     # --- Load the pre-calculated features and labels ---
-    feature_input_dir = "/blue/pbenos/tan.m/IBDCosMx_scRNAseq/CosMx/Post-NMF_Analysis"
+    feature_input_dir = "/blue/kejun.huang/tan.m/IBDCosMx_scRNAseq/CosMx/Post-NMF_Analysis"
     X = pd.read_parquet(os.path.join(feature_input_dir, 'combined_features.parquet'))
     y = pd.read_parquet(os.path.join(feature_input_dir, 'targets_y.parquet')).squeeze()
     groups = pd.read_parquet(os.path.join(feature_input_dir, 'groups.parquet')).squeeze()

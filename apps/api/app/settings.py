@@ -1,7 +1,12 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from .storage import enforce_allowed_path
+
+# Load environment variables from .env file
+load_dotenv()
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 RUNS_DIR = Path(os.environ.get("RUNS_DIR", str(REPO_ROOT / "runs"))).resolve()

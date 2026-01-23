@@ -14,7 +14,7 @@ from .settings import (
     WORKER_POLL_SECONDS,
     validate_settings,
 )
-from .slurm import get_job_state
+from .slurm import get_job_info
 from .storage import enforce_allowed_path
 
 logger = logging.getLogger("sptx.worker")
@@ -72,10 +72,21 @@ def loop() -> None:
                     continue
                 if run.get("status") not in {"submitted", "running", "queued"}:
                     continue
-                state = get_job_state(job_id)
-                if state:
-                    mapped = map_slurm_state(state)
-                    update_run(run["id"], status=mapped)
+                info = get_job_info(job_id)
+                if info and info.get("state"):
+                    mapped = map_slurm_state(str(info["state"]))
+                    update_run(
+                        run["id"],
+                        status=mapped,
+                        slurm_state=info.get("state"),
+                        slurm_reason=info.get("reason"),
+                        slurm_exit_code=info.get("exit_code"),
+                        slurm_exit_signal=info.get("exit_signal"),
+                        slurm_elapsed=info.get("elapsed"),
+                        submitted_at=info.get("submitted_at"),
+                        started_at=info.get("started_at"),
+                        finished_at=info.get("finished_at"),
+                    )
             now = time.time()
             if RUN_RETENTION_DAYS > 0 and now - last_cleanup >= CLEANUP_INTERVAL_SECONDS:
                 cleanup_runs()

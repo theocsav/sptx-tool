@@ -7,9 +7,30 @@ export type Run = {
   output_dir?: string | null;
   config_path?: string | null;
   job_id?: string | null;
+  slurm_state?: string | null;
+  slurm_reason?: string | null;
+  slurm_exit_code?: number | null;
+  slurm_exit_signal?: number | null;
+  slurm_elapsed?: string | null;
+  submitted_at?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
   message?: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type RunSummary = {
+  generated_at: string;
+  run_name: string;
+  output_dir: string;
+  stages: string[];
+  report_title?: string;
+  report_notes?: string;
+  report_path: string;
+  manifest_path: string;
+  figures_count: number;
+  tables_count: number;
 };
 
 export type RunCreatePayload = {
@@ -103,6 +124,28 @@ export type PreflightResponse = {
   errors: string[];
   warnings: string[];
   checks: Record<string, unknown>;
+};
+
+export type DryRunPayload = {
+  run_name: string;
+  preset_path?: string;
+  config?: Record<string, unknown>;
+  check_paths?: boolean;
+  emit_sbatch?: boolean;
+};
+
+export type DryRunResponse = {
+  ok: boolean;
+  errors: string[];
+  warnings: string[];
+  checks: Record<string, unknown>;
+  run_dir?: string | null;
+  output_dir?: string | null;
+  config_path?: string | null;
+  resolved_config_path?: string | null;
+  resolved_config?: Record<string, unknown> | null;
+  pipeline_stdout?: string | null;
+  pipeline_stderr?: string | null;
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
@@ -217,9 +260,20 @@ export async function preflightRun(payload: PreflightPayload) {
   });
 }
 
+export async function dryRun(payload: DryRunPayload) {
+  return apiFetch<DryRunResponse>("/runs/dry-run", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function fetchArtifacts(runId: number, path = "") {
   const query = path ? `?path=${encodeURIComponent(path)}` : "";
   return apiFetch<{ items: { path: string; size: string }[] }>(`/runs/${runId}/artifacts${query}`);
+}
+
+export async function fetchRunSummary(runId: number) {
+  return apiFetch<RunSummary>(`/runs/${runId}/summary`);
 }
 
 export async function fetchLogs(runId: number, path?: string) {

@@ -30,9 +30,9 @@ import re
 
 # --- Define Paths --------------------------------------------------------------------------------
 
-reference_h5ad_path = "/blue/pbenos/tan.m/IBDCosMx_scRNAseq/scRNA/combined_10x_reference_final.h5ad"
-cosmx_h5ad_path = "/blue/pbenos/tan.m/IBDCosMx_scRNAseq/CosMx/GSE234713_CosMx_combined.h5ad"
-ref_model_dir = "/blue/pbenos/tan.m/IBDCosMx_scRNAseq/cell2location_models"
+reference_h5ad_path = "/blue/kejun.huang/tan.m/IBDCosMx_scRNAseq/scRNA/combined_10x_reference_final.h5ad"
+cosmx_h5ad_path = "/blue/kejun.huang/tan.m/IBDCosMx_scRNAseq/CosMx/GSE234713_CosMx_combined.h5ad"
+ref_model_dir = "/blue/kejun.huang/tan.m/IBDCosMx_scRNAseq/cell2location_models"
 os.makedirs(ref_model_dir, exist_ok=True) # Ensure the directory exists
 ref_model_path = os.path.join(ref_model_dir, "cell2location_reference_model_3000ep_500samp_NMF-k5")
 
@@ -114,7 +114,7 @@ selected_genes_for_model = c2l.utils.filtering.filter_genes(
 print(f"Number of genes selected by c2l.utils.filtering.filter_genes: {len(selected_genes_for_model)}")
 
 # --- Add lines to save the figure here ---
-output_dir = "/blue/pbenos/tan.m/IBDCosMx_scRNAseq/Outputs_3000epochs_500samples_NMF-k5"
+output_dir = "/blue/kejun.huang/tan.m/IBDCosMx_scRNAseq/Outputs_3000epochs_500samples_NMF-k5"
 os.makedirs(output_dir, exist_ok=True) # Ensure the directory exists
 
 figure_path = os.path.join(output_dir, "gene_filter_accuracy_plot.png") # Choose a descriptive name
@@ -193,7 +193,7 @@ print(f"\nReference Model saved to: {ref_model_path}")
 model_ref_trained.plot_history(20) # Use model_ref_trained here
 
 # --- Add lines to save the figure here ---
-output_dir = "/blue/pbenos/tan.m/IBDCosMx_scRNAseq/Outputs_3000epochs_500samples_NMF-k5"
+output_dir = "/blue/kejun.huang/tan.m/IBDCosMx_scRNAseq/Outputs_3000epochs_500samples_NMF-k5"
 os.makedirs(output_dir, exist_ok=True) # Ensure the directory exists
 
 figure_path = os.path.join(output_dir, "ref_model_training_history.png") # Choose a descriptive name
@@ -221,7 +221,7 @@ model_ref_trained.export_posterior(
 model_ref_trained.plot_QC()
 
 # Define output directory (assuming ref_model_dir is already defined as in your full script)
-output_dir = "/blue/pbenos/tan.m/IBDCosMx_scRNAseq/Outputs_3000epochs_500samples_NMF-k5"
+output_dir = "/blue/kejun.huang/tan.m/IBDCosMx_scRNAseq/Outputs_3000epochs_500samples_NMF-k5"
 os.makedirs(output_dir, exist_ok=True) # Ensure the directory exists
 
 # Save the QC plot
@@ -323,7 +323,7 @@ else:
     print(f"adata_st.obs_names recreated as unique_cell_id (fov_cell_ID). Example: {adata_st.obs_names[0]}")
 
     cell_metadata_file_name = "GSE234713_CosMx_cell_metadata.csv.gz" 
-    spatial_metadata_path = os.path.join("/blue/pbenos/tan.m/IBDCosMx_scRNAseq/CosMx/", cell_metadata_file_name)
+    spatial_metadata_path = os.path.join("/blue/kejun.huang/tan.m/IBDCosMx_scRNAseq/CosMx/", cell_metadata_file_name)
 
     spatial_coords_present = False
     if not os.path.exists(spatial_metadata_path):
@@ -382,7 +382,7 @@ model.train(max_epochs=3000, batch_size=None, train_size=1, accelerator='cpu')
 # plot training history
 model.plot_history()
 
-output_dir = "/blue/pbenos/tan.m/IBDCosMx_scRNAseq/Outputs_3000epochs_500samples_NMF-k5"
+output_dir = "/blue/kejun.huang/tan.m/IBDCosMx_scRNAseq/Outputs_3000epochs_500samples_NMF-k5"
 os.makedirs(output_dir, exist_ok=True) # Ensure the directory exists
 
 figure_path = os.path.join(output_dir, "spatial_model_training_history.png") # Choose a descriptive name
@@ -408,7 +408,7 @@ adata_st = model.export_posterior(
 model.plot_QC()
 
 # --- Add lines to save the figure here ---
-output_dir = "/blue/pbenos/tan.m/IBDCosMx_scRNAseq/Outputs_3000epochs_500samples_NMF-k5"
+output_dir = "/blue/kejun.huang/tan.m/IBDCosMx_scRNAseq/Outputs_3000epochs_500samples_NMF-k5"
 os.makedirs(output_dir, exist_ok=True) # Ensure the directory exists
 
 figure_path = os.path.join(output_dir, "spatial_model_QC_plot.png") # Choose a descriptive name
@@ -457,7 +457,7 @@ except Exception as e:
 print("\n--- Starting NMF Analysis ---")
 
 # Define the output directory for NMF results.
-nmf_output_dir = "/blue/pbenos/tan.m/IBDCosMx_scRNAseq/Outputs_3000epochs_500samples_NMF-k5"
+nmf_output_dir = "/blue/kejun.huang/tan.m/IBDCosMx_scRNAseq/Outputs_3000epochs_500samples_NMF-k5"
 os.makedirs(nmf_output_dir, exist_ok=True)
 print(f"NMF outputs will be saved to: {nmf_output_dir}")
 

@@ -1,6 +1,7 @@
 import json
 import shutil
 import subprocess
+import sys
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -22,8 +23,10 @@ from .auth import (
 from .db import create_run, enqueue_run, fetch_run, init_db, list_runs, update_run
 from .preflight_cache import build_cache_key, get_cached_join_result, set_cached_join_result
 from .registry import dataset_manifest_hash, get_dataset, list_datasets, list_presets
-from .runner import apply_dataset_registry, load_preset, prepare_run, resolve_run_paths
+from .runner import apply_dataset_registry, load_preset, prepare_run, resolve_run_paths, PIPELINE_RUNNER
 from .schemas import (
+    DryRunRequest,
+    DryRunResponse,
     LoginRequest,
     LoginResponse,
     PreflightRequest,
@@ -175,6 +178,51 @@ def get_run(run_id: int) -> dict:
     return run
 
 
+def _validate_config_payload(
+    config: dict,
+    check_paths: bool,
+    preset_path: Optional[str] = None,
+) -> tuple[list[str], list[str], dict]:
+    dataset_id = config.get("dataset_id")
+    preset_id = config.get("preset_id") or config.get("id")
+    if preset_path:
+        preset_id = Path(preset_path).stem
+
+    cached_join = None
+    cache_key = None
+    if dataset_id:
+        dataset = get_dataset(dataset_id)
+        if dataset:
+            manifest_hash = dataset_manifest_hash(dataset)
+            cache_key = build_cache_key(dataset_id, manifest_hash, preset_id)
+            cached_join = get_cached_join_result(cache_key)
+
+    errors, warnings, checks = validate_config(
+        config,
+        check_paths=check_paths,
+        allow_join_fallback=PREFLIGHT_SLURM_FALLBACK,
+        join_key_result=cached_join,
+    )
+    join_status = checks.get("join_keys", {}).get("status")
+    if join_status == "missing_deps" and PREFLIGHT_SLURM_FALLBACK and check_paths:
+        slurm_result = run_slurm_preflight(config)
+        if slurm_result.get("ok"):
+            errors, warnings, checks = validate_config(
+                config,
+                check_paths=check_paths,
+                allow_join_fallback=False,
+                join_key_result=slurm_result["result"],
+            )
+        else:
+            errors.append(slurm_result.get("error", "Preflight SLURM fallback failed."))
+
+    join_result = checks.get("join_keys", {})
+    if cache_key and join_result and "matched" in join_result:
+        set_cached_join_result(cache_key, join_result, PREFLIGHT_CACHE_TTL_SECONDS)
+
+    return errors, warnings, checks
+
+
 @app.post(
     "/runs/preflight",
     response_model=PreflightResponse,
@@ -188,51 +236,83 @@ def preflight(payload: PreflightRequest) -> dict:
     if payload.preset_path:
         config = load_preset(payload.preset_path)
     if payload.config:
-        config.update(payload.config)
+        config.update(payload.config.model_dump(exclude_none=True))
 
     try:
         config = apply_dataset_registry(config)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    dataset_id = config.get("dataset_id")
-    preset_id = config.get("preset_id") or config.get("id")
-    if payload.preset_path:
-        preset_id = Path(payload.preset_path).stem
-
-    cached_join = None
-    cache_key = None
-    if dataset_id:
-        dataset = get_dataset(dataset_id)
-        if dataset:
-            manifest_hash = dataset_manifest_hash(dataset)
-            cache_key = build_cache_key(dataset_id, manifest_hash, preset_id)
-            cached_join = get_cached_join_result(cache_key)
-
-    errors, warnings, checks = validate_config(
-        config,
-        check_paths=payload.check_paths,
-        allow_join_fallback=PREFLIGHT_SLURM_FALLBACK,
-        join_key_result=cached_join,
-    )
-    join_status = checks.get("join_keys", {}).get("status")
-    if join_status == "missing_deps" and PREFLIGHT_SLURM_FALLBACK and payload.check_paths:
-        slurm_result = run_slurm_preflight(config)
-        if slurm_result.get("ok"):
-            errors, warnings, checks = validate_config(
-                config,
-                check_paths=payload.check_paths,
-                allow_join_fallback=False,
-                join_key_result=slurm_result["result"],
-            )
-        else:
-            errors.append(slurm_result.get("error", "Preflight SLURM fallback failed."))
-
-    join_result = checks.get("join_keys", {})
-    if cache_key and join_result and "matched" in join_result:
-        set_cached_join_result(cache_key, join_result, PREFLIGHT_CACHE_TTL_SECONDS)
+    errors, warnings, checks = _validate_config_payload(config, payload.check_paths, payload.preset_path)
 
     return {"ok": not errors, "errors": errors, "warnings": warnings, "checks": checks}
+
+
+@app.post(
+    "/runs/dry-run",
+    response_model=DryRunResponse,
+    dependencies=[Depends(require_session), Depends(require_csrf)],
+)
+def dry_run(payload: DryRunRequest) -> dict:
+    if not payload.config and not payload.preset_path:
+        raise HTTPException(status_code=400, detail="Provide preset_path or config")
+
+    config = {}
+    if payload.preset_path:
+        config = load_preset(payload.preset_path)
+    if payload.config:
+        config.update(payload.config.model_dump(exclude_none=True))
+
+    try:
+        config = apply_dataset_registry(config)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    run_name = payload.run_name or config.get("run_name")
+    if not run_name:
+        raise HTTPException(status_code=400, detail="run_name is required")
+    config["run_name"] = run_name
+
+    errors, warnings, checks = _validate_config_payload(config, payload.check_paths, payload.preset_path)
+    if errors:
+        return {"ok": False, "errors": errors, "warnings": warnings, "checks": checks}
+
+    try:
+        run_dir, output_dir, resolved_config = resolve_run_paths(run_name, config)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    run_dir.mkdir(parents=True, exist_ok=True)
+    config_path = run_dir / "config.json"
+    config_path.write_text(json.dumps(resolved_config, indent=2), encoding="utf-8")
+
+    cmd = [sys.executable, str(PIPELINE_RUNNER), "--config", str(config_path)]
+    if payload.emit_sbatch:
+        cmd.append("--emit-sbatch")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    resolved_config_path = run_dir / "config.resolved.json"
+    resolved_config_data = None
+    if resolved_config_path.exists():
+        resolved_config_data = json.loads(resolved_config_path.read_text(encoding="utf-8"))
+
+    response = {
+        "ok": result.returncode == 0,
+        "errors": [],
+        "warnings": warnings,
+        "checks": checks,
+        "run_dir": str(run_dir),
+        "output_dir": str(output_dir),
+        "config_path": str(config_path),
+        "resolved_config_path": str(resolved_config_path) if resolved_config_path.exists() else None,
+        "resolved_config": resolved_config_data,
+        "pipeline_stdout": result.stdout or "",
+        "pipeline_stderr": result.stderr or "",
+    }
+    if result.returncode != 0:
+        message = result.stderr or result.stdout or "Pipeline dry-run failed."
+        response["errors"] = [message.strip()]
+    return response
 
 
 def _create_run_from_config(run_name: str, config: dict, submit: bool, queue: bool) -> dict:
@@ -294,7 +374,7 @@ def create_run_endpoint(payload: RunCreate) -> dict:
     if payload.preset_path:
         config = load_preset(payload.preset_path)
     if payload.config:
-        config.update(payload.config)
+        config.update(payload.config.model_dump(exclude_none=True))
 
     try:
         config = apply_dataset_registry(config)
@@ -431,6 +511,29 @@ def get_artifact(run_id: int, path: str = Query(...)) -> FileResponse:
         raise HTTPException(status_code=404, detail="Artifact not found")
 
     return FileResponse(path=str(file_path), filename=file_path.name)
+
+
+@app.get("/runs/{run_id}/summary", dependencies=[Depends(require_session)])
+def get_run_summary(run_id: int) -> dict:
+    run = fetch_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    output_dir = run.get("output_dir")
+    if not output_dir:
+        raise HTTPException(status_code=400, detail="Run has no output_dir")
+
+    base = Path(output_dir)
+    try:
+        enforce_allowed_path(base, ARTIFACT_ROOTS)
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    try:
+        summary_path = safe_join(base, "artifacts/run_summary.json")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid summary path") from exc
+    if not summary_path.exists() or not summary_path.is_file():
+        raise HTTPException(status_code=404, detail="Run summary not found")
+    return json.loads(summary_path.read_text(encoding="utf-8"))
 
 
 @app.post("/runs/{run_id}/cancel", dependencies=[Depends(require_session), Depends(require_csrf)])

@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import {
   createRun,
+  dryRun,
   fetchDatasets,
   fetchMe,
   fetchPresets,
@@ -25,6 +26,19 @@ type PreflightResult = {
   errors: string[];
   warnings: string[];
   checks: Record<string, unknown>;
+};
+
+type DryRunResult = {
+  ok: boolean;
+  errors: string[];
+  warnings: string[];
+  checks: Record<string, unknown>;
+  run_dir?: string | null;
+  output_dir?: string | null;
+  config_path?: string | null;
+  resolved_config_path?: string | null;
+  pipeline_stdout?: string | null;
+  pipeline_stderr?: string | null;
 };
 
 type RunType = "minimal" | "paper";
@@ -96,6 +110,9 @@ export default function Home() {
   const [rerunLoadingId, setRerunLoadingId] = useState<number | null>(null);
   const [preflightLoading, setPreflightLoading] = useState(false);
   const [preflightResult, setPreflightResult] = useState<PreflightResult | null>(null);
+  const [dryRunLoading, setDryRunLoading] = useState(false);
+  const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
+  const [autoRefreshRuns, setAutoRefreshRuns] = useState(true);
   const [step, setStep] = useState(1);
 
   const selectedPreset = useMemo(
@@ -150,6 +167,7 @@ export default function Home() {
     }
     setStatus("");
     setPreflightResult(null);
+    setDryRunResult(null);
     setRunName(selectedPreset.run_name || selectedPreset.id || "");
 
     const defaults = selectedPreset.default_params || {};
@@ -177,6 +195,7 @@ export default function Home() {
 
   useEffect(() => {
     setPreflightResult(null);
+    setDryRunResult(null);
   }, [selectedDatasetId, mode, nComponents, kMin, kMax, runType]);
 
   async function refreshRuns() {
@@ -187,6 +206,17 @@ export default function Home() {
       setStatus(error instanceof Error ? error.message : String(error));
     }
   }
+
+  useEffect(() => {
+    if (!currentUser || !autoRefreshRuns) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      refreshRuns();
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [currentUser, autoRefreshRuns, refreshRuns]);
+
 
   async function handleLogout() {
     setStatus("");
@@ -321,6 +351,30 @@ export default function Home() {
     }
   }
 
+  async function handleDryRun() {
+    if (!selectedPreset?.path) {
+      setStatus("Select a preset before running a dry run.");
+      return;
+    }
+    setStatus("");
+    setDryRunLoading(true);
+    try {
+      const config = buildConfig();
+      const result = await dryRun({
+        run_name: runName,
+        preset_path: selectedPreset.path,
+        config,
+        check_paths: true,
+        emit_sbatch: true,
+      });
+      setDryRunResult(result);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setDryRunLoading(false);
+    }
+  }
+
   async function handleCreate() {
     if (!selectedPreset?.path) {
       setStatus("Select a preset before creating a run.");
@@ -395,7 +449,6 @@ export default function Home() {
       </details>
       <header className="hero">
         <div className="hero-copy">
-          <p className="eyebrow">Spatial Transcriptomics Runner</p>
           <h1>NicheRunner</h1>
           <p>
             Build reproducible spatial analysis runs with preset-driven configuration, dataset
@@ -703,10 +756,20 @@ export default function Home() {
               </div>
 
               <div className="card stack">
-                <h3>Preflight Panel</h3>
-                <button onClick={handlePreflight} disabled={!currentUser || preflightLoading}>
-                  {preflightLoading ? "Running preflight..." : "Run preflight"}
-                </button>
+                <h3>Preflight & Dry Run</h3>
+                <div className="inline-actions">
+                  <button onClick={handlePreflight} disabled={!currentUser || preflightLoading}>
+                    {preflightLoading ? "Running preflight..." : "Run preflight"}
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={handleDryRun}
+                    disabled={!currentUser || dryRunLoading}
+                  >
+                    {dryRunLoading ? "Generating..." : "Dry run"}
+                  </button>
+                </div>
                 <p className="muted">
                   Permissions reflect API host access; enable SLURM fallback to validate compute-user
                   readability when needed.
@@ -772,6 +835,87 @@ export default function Home() {
                 ) : (
                   <p className="muted">Run preflight to see validation results.</p>
                 )}
+
+                <div className="card inset">
+                  <strong>Dry run output</strong>
+                  {dryRunResult ? (
+                    <div className="preflight">
+                      <div className={`pill ${dryRunResult.ok ? "ok" : "bad"}`}>
+                        {dryRunResult.ok ? "Dry run OK" : "Dry run issues"}
+                      </div>
+                      {dryRunResult.errors.length > 0 ? (
+                        <div>
+                          <strong>Errors</strong>
+                          <ul>
+                            {dryRunResult.errors.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                      {dryRunResult.warnings.length > 0 ? (
+                        <div>
+                          <strong>Warnings</strong>
+                          <ul>
+                            {dryRunResult.warnings.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                      {dryRunResult.run_dir ? <div>Run dir: {dryRunResult.run_dir}</div> : null}
+                      {dryRunResult.output_dir ? <div>Output dir: {dryRunResult.output_dir}</div> : null}
+                      {dryRunResult.config_path ? <div>Config: {dryRunResult.config_path}</div> : null}
+                      {dryRunResult.resolved_config_path ? (
+                        <div>Resolved config: {dryRunResult.resolved_config_path}</div>
+                      ) : null}
+                      {dryRunResult.pipeline_stdout ? (
+                        <div>
+                          <strong>Pipeline stdout</strong>
+                          <pre>{dryRunResult.pipeline_stdout}</pre>
+                        </div>
+                      ) : null}
+                      {dryRunResult.pipeline_stderr ? (
+                        <div>
+                          <strong>Pipeline stderr</strong>
+                          <pre>{dryRunResult.pipeline_stderr}</pre>
+                        </div>
+                      ) : null}
+                      {typeof dryRunResult.checks === "object" ? (
+                        <div className="preflight-grid">
+                          {(["exists", "roots", "permissions"] as const).map((key) => {
+                            const record = dryRunResult.checks[key] as Record<string, unknown> | undefined;
+                            if (!record) {
+                              return null;
+                            }
+                            return (
+                              <div key={key}>
+                                <strong>{key}</strong>
+                                {Object.entries(record).map(([pathKey, value]) => {
+                                  const meta = formatCheck(value);
+                                  return (
+                                    <div key={pathKey} className={`check-row ${meta.tone}`}>
+                                      <span>{pathKey}</span>
+                                      <span>{meta.label}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })}
+                          {dryRunResult.checks.join_keys ? (
+                            <div>
+                              <strong>join_keys</strong>
+                              <pre>{JSON.stringify(dryRunResult.checks.join_keys, null, 2)}</pre>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p className="muted">Run a dry run to generate scripts without submitting.</p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -799,9 +943,20 @@ export default function Home() {
       <section className="panel">
         <div className="panel-header">
           <h2>Runs</h2>
-          <button onClick={refreshRuns} disabled={!currentUser}>
-            Refresh
-          </button>
+          <div className="inline-actions">
+            <div className="checkbox">
+              <input
+                type="checkbox"
+                checked={autoRefreshRuns}
+                onChange={(event) => setAutoRefreshRuns(event.target.checked)}
+                disabled={!currentUser}
+              />
+              <span>Auto refresh</span>
+            </div>
+            <button onClick={refreshRuns} disabled={!currentUser}>
+              Refresh
+            </button>
+          </div>
         </div>
         <div className="run-grid">
           {runs.map((run) => (
